@@ -1,7 +1,16 @@
 @props(['examples'])
 
 <aside id="chatSidebar" class="w-72 sm:w-80 border-r border-zinc-800 bg-zinc-950 flex flex-col shrink-0 overflow-y-auto transition-[width,opacity,transform] duration-200">
-    <div class="p-3 border-b border-zinc-800">
+    <div class="p-3 border-b border-zinc-800 flex items-center justify-between gap-2">
+            <h1 class="text-sm font-semibold text-zinc-100 tracking-tight">Chatbot de expresiones regulares</h1>
+        <button type="button" data-chat-action="toggle-sidebar" class="flex h-5 w-5 items-center justify-center rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition" title="Abrir o cerrar panel lateral">
+           <span class="material-symbols-outlined">
+            close
+            </span>
+        </button>
+    </div>
+    
+    <div class="p-3 border-b border-zinc-800 flex items-center justify-between gap-2">
         <button type="button" data-chat-action="new-chat" class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-left text-xs font-medium text-zinc-100 transition hover:bg-zinc-800">
             Nuevo chat
         </button>

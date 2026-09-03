@@ -136,13 +136,59 @@ class ChatbotController extends Controller
         ], 201);
     }
 
+    public function updateConversation(Request $request, Conversation $conversation): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:80'],
+        ]);
+
+        $chatSessionId = $this->chatSessionId($request);
+        $conversation = $this->conversationForSession($conversation->id, $chatSessionId);
+        $conversation->update([
+            'title' => Str::of($validated['title'])->trim()->toString(),
+        ]);
+
+        return response()->json([
+            'conversation' => $this->serializeConversation($conversation->load('messages')),
+            'conversations' => $this->conversationList($chatSessionId),
+        ]);
+    }
+
+    public function destroyConversation(Request $request, Conversation $conversation): JsonResponse
+    {
+        $chatSessionId = $this->chatSessionId($request);
+        $conversation = $this->conversationForSession($conversation->id, $chatSessionId);
+        $activeConversationId = $request->session()->get('active_conversation_id');
+
+        $conversation->delete();
+
+        $nextConversation = null;
+
+        if ((int) $activeConversationId === (int) $conversation->id) {
+            $nextConversation = $this->latestConversation($chatSessionId);
+
+            if ($nextConversation) {
+                $request->session()->put('active_conversation_id', $nextConversation->id);
+            } else {
+                $request->session()->forget('active_conversation_id');
+            }
+        } elseif ($activeConversationId) {
+            $nextConversation = $this->latestConversation($chatSessionId, (int) $activeConversationId);
+        }
+
+        return response()->json([
+            'conversation' => $nextConversation ? $this->serializeConversation($nextConversation) : null,
+            'conversations' => $this->conversationList($chatSessionId),
+        ]);
+    }
+
     /**
      * @param  array<string, mixed>  $validation
      */
     private function recordConversation(Conversation $conversation, string $userName, string $input, string $botText, ?string $selectedType, array $validation): Conversation
     {
         $conversation->forceFill([
-            'title' => $conversation->messages()->exists() ? $conversation->title : Str::limit($input, 48, ''),
+            'title' => $this->conversationTitle($conversation, $input),
             'user_name' => $userName,
             'last_message_at' => now(),
         ])->save();
@@ -169,15 +215,21 @@ class ChatbotController extends Controller
         return $conversation;
     }
 
+    private function conversationTitle(Conversation $conversation, string $input): string
+    {
+        if ($conversation->messages()->exists() || $conversation->title !== 'Nuevo chat') {
+            return $conversation->title;
+        }
+
+        return Str::limit($input, 48, '');
+    }
+
     private function activeConversation(Request $request, ?int $conversationId, string $userName): Conversation
     {
         $chatSessionId = $this->chatSessionId($request);
 
         if ($conversationId) {
-            $conversation = Conversation::query()
-                ->where('session_id', $chatSessionId)
-                ->where('id', $conversationId)
-                ->firstOrFail();
+            $conversation = $this->conversationForSession($conversationId, $chatSessionId);
 
             $request->session()->put('active_conversation_id', $conversation->id);
 
@@ -228,6 +280,29 @@ class ChatbotController extends Controller
                 'last_message_at' => $conversation->last_message_at?->toISOString(),
             ])
             ->all();
+    }
+
+    private function conversationForSession(int $conversationId, string $chatSessionId): Conversation
+    {
+        return Conversation::query()
+            ->where('session_id', $chatSessionId)
+            ->where('id', $conversationId)
+            ->firstOrFail();
+    }
+
+    private function latestConversation(string $chatSessionId, ?int $conversationId = null): ?Conversation
+    {
+        return Conversation::query()
+            ->where('session_id', $chatSessionId)
+            ->when($conversationId, fn ($query) => $query->where('id', $conversationId))
+            ->with([
+                'messages' => fn ($query) => $query
+                    ->with(['selectedLanguage:id,code,name', 'matchedLanguage:id,code,name'])
+                    ->oldest(),
+            ])
+            ->latest('last_message_at')
+            ->latest('id')
+            ->first();
     }
 
     /**

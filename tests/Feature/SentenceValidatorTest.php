@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Conversation;
 use App\Services\SentenceValidatorService;
 use Database\Seeders\LanguageSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -204,6 +205,114 @@ class SentenceValidatorTest extends TestCase
         $this->assertDatabaseHas('conversations', [
             'session_id' => 'test-chat-session',
             'title' => 'Were you a good student?',
+        ]);
+    }
+
+    public function test_conversation_title_can_be_updated_for_current_session(): void
+    {
+        $this->withSession(['chat_session_id' => 'test-chat-session']);
+
+        $conversation = Conversation::query()->create([
+            'session_id' => 'test-chat-session',
+            'title' => 'Nuevo chat',
+            'user_name' => 'Carlos',
+            'last_message_at' => now(),
+        ]);
+
+        $response = $this->patchJson("/api/conversations/{$conversation->id}", [
+            'title' => 'Práctica de preguntas',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('conversation.title', 'Práctica de preguntas')
+            ->assertJsonPath('conversations.0.title', 'Práctica de preguntas');
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $conversation->id,
+            'title' => 'Práctica de preguntas',
+        ]);
+    }
+
+    public function test_edited_empty_conversation_title_is_not_replaced_by_first_message(): void
+    {
+        $this->withSession(['chat_session_id' => 'test-chat-session']);
+
+        $conversation = Conversation::query()->create([
+            'session_id' => 'test-chat-session',
+            'title' => 'Repaso examen',
+            'user_name' => 'Carlos',
+            'last_message_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/validate', [
+            'message' => 'Is she a nice girl?',
+            'type' => 'YES_NO_PRESENT',
+            'user_name' => 'Carlos',
+            'conversation_id' => $conversation->id,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('conversation.title', 'Repaso examen');
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $conversation->id,
+            'title' => 'Repaso examen',
+        ]);
+    }
+
+    public function test_conversation_title_update_returns_404_for_another_session(): void
+    {
+        $this->withSession(['chat_session_id' => 'test-chat-session']);
+
+        $conversation = Conversation::query()->create([
+            'session_id' => 'another-chat-session',
+            'title' => 'Chat privado',
+            'user_name' => 'Carlos',
+            'last_message_at' => now(),
+        ]);
+
+        $response = $this->patchJson("/api/conversations/{$conversation->id}", [
+            'title' => 'Título invasor',
+        ]);
+
+        $response->assertNotFound();
+
+        $this->assertDatabaseHas('conversations', [
+            'id' => $conversation->id,
+            'title' => 'Chat privado',
+        ]);
+    }
+
+    public function test_active_conversation_can_be_deleted_and_falls_back_to_latest_chat(): void
+    {
+        $this->withSession([
+            'chat_session_id' => 'test-chat-session',
+        ]);
+
+        $this->postJson('/api/validate', [
+            'message' => 'Is she a nice girl?',
+            'type' => 'YES_NO_PRESENT',
+            'user_name' => 'Carlos',
+        ])->assertOk();
+
+        $newChatResponse = $this->postJson('/api/conversations')->assertCreated();
+        $conversationId = $newChatResponse->json('conversation.id');
+
+        $this->postJson('/api/validate', [
+            'message' => 'Were you a good student?',
+            'type' => 'PAST_WAS_WERE',
+            'user_name' => 'Carlos',
+            'conversation_id' => $conversationId,
+        ])->assertOk();
+
+        $response = $this->deleteJson("/api/conversations/{$conversationId}");
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'conversations')
+            ->assertJsonPath('conversation.title', 'Is she a nice girl?');
+
+        $this->assertDatabaseMissing('conversations', [
+            'id' => $conversationId,
         ]);
     }
 }

@@ -1,6 +1,6 @@
 @extends('layout')
 
-@section('title', 'Chatbot con Expresiones Regulares | Questions TO BE')
+@section('title', 'Expresiones Regulares')
 
 @section('content')
 <x-chat.workspace :examples="$examples" />

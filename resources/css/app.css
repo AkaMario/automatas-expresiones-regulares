@@ -1,10 +1,10 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 ::-webkit-scrollbar {
@@ -26,10 +26,21 @@
 }
 
 .sidebar-collapsed #chatSidebar {
-    width: 0;
-    opacity: 0;
-    border-right-width: 0;
-    overflow: hidden;
+    width: 3.5rem;
+    min-width: 3.5rem;
+}
+
+.sidebar-collapsed #chatSidebar > div:not(:first-child),
+.sidebar-collapsed #chatSidebar > footer {
+    display: none;
+}
+
+.sidebar-collapsed #chatSidebar > div:first-child {
+    justify-content: center;
+}
+
+.sidebar-collapsed #chatSidebar > div:first-child h1 {
+    display: none;
 }
 
 .chat-bubble-bot {

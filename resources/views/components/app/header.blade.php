@@ -4,8 +4,7 @@
             <i class="fa-solid fa-bars text-sm"></i>
         </button>
         <div class="leading-tight">
-            <h1 class="text-sm font-semibold text-zinc-100 tracking-tight">RegexBot</h1>
-            <p class="hidden sm:block text-[11px] text-zinc-500">Validador de preguntas con verbo TO BE</p>
+            <h1 class="text-sm font-semibold text-zinc-100 tracking-tight">Chatbot de expresiones regulares</h1>
         </div>
     </div>
 

@@ -2,35 +2,51 @@
 
 namespace App\Services;
 
+use App\Models\Language;
+
 class SentenceValidatorService
 {
     /**
      * Get regex definitions for all question types
+     *
+     * @return array<string, array{id: int, name: string, formula: string, pattern: string, description: ?string, valid: array<int, string>, invalid: array<string, string>}>
      */
     public static function getPatterns(): array
     {
-        $singularSubject = '(?:he|she|it|this\s+[a-z]+|that\s+[a-z]+|the\s+[a-z]+(?<!s)|(?!(?:you|we|they|he|she|it|i|the|this|that|these|those)\b)[a-z]+)';
-        $pluralSubject = '(?:you|we|they|these\s+[a-z]+|those\s+[a-z]+|the\s+[a-z]+s|(?!(?:you|we|they|he|she|it|i|the|this|that|these|those)\b)[a-z]+(?:\s+and\s+(?!(?:you|we|they|he|she|it|i|the|this|that|these|those)\b)[a-z]+)+)';
-        $wasSubject = '(?:I|he|she|it|this\s+[a-z]+|that\s+[a-z]+|the\s+[a-z]+(?<!s)|(?!(?:you|we|they|he|she|it|i|the|this|that|these|those)\b)[a-z]+)';
-        $wereSubject = '(?:you|we|they|these\s+[a-z]+|those\s+[a-z]+|the\s+[a-z]+s|(?!(?:you|we|they|he|she|it|i|the|this|that|these|those)\b)[a-z]+(?:\s+and\s+(?!(?:you|we|they|he|she|it|i|the|this|that|these|those)\b)[a-z]+)+)';
+        return Language::query()
+            ->active()
+            ->ordered()
+            ->get()
+            ->mapWithKeys(fn (Language $language): array => [
+                $language->code => [
+                    'id' => $language->id,
+                    'name' => $language->name,
+                    'formula' => $language->formula,
+                    'pattern' => $language->regex_pattern,
+                    'description' => $language->description,
+                    'valid' => $language->valid_examples ?? [],
+                    'invalid' => $language->invalid_examples ?? [],
+                ],
+            ])
+            ->all();
+    }
 
-        return [
-            'YES_NO_PRESENT' => [
-                'name' => 'Yes/No Questions (Presente)',
-                'formula' => 'Verbo To Be (Am / Is / Are) + Sujeto + Complemento + ?',
-                'pattern' => '/^(?:(?P<verb_am>Am)\s+(?P<subject_i>I)|(?P<verb_is>Is)\s+(?P<subject_singular>' . $singularSubject . ')|(?P<verb_are>Are)\s+(?P<subject_plural>' . $pluralSubject . '))\s+(?P<complement>[a-zA-Z0-9\s,\'.-]+)\?$/i',
-            ],
-            'WH_QUESTION' => [
-                'name' => 'Wh- Questions (Información)',
-                'formula' => 'Palabra Wh- + Verbo To Be + Sujeto + Complemento + ?',
-                'pattern' => '/^(?P<wh_word>What|Where|When|Who|Why|How|Which)\s+(?:(?P<verb_am>am)\s+(?P<subject_i>I)|(?P<verb_is>is)\s+(?P<subject_singular>' . $singularSubject . ')|(?P<verb_are>are)\s+(?P<subject_plural>' . $pluralSubject . ')|(?P<verb_was>was)\s+(?P<subject_was>' . $wasSubject . ')|(?P<verb_were>were)\s+(?P<subject_were>' . $wereSubject . '))(?:\s+(?P<complement>[a-zA-Z0-9\s,\'.-]+))?\?$/i',
-            ],
-            'PAST_WAS_WERE' => [
-                'name' => 'Questions Pasado (Was / Were)',
-                'formula' => 'Verbo To Be (Was / Were) + Sujeto + Complemento + ?',
-                'pattern' => '/^(?:(?P<verb_was>Was)\s+(?P<subject_was>' . $wasSubject . ')|(?P<verb_were>Were)\s+(?P<subject_were>' . $wereSubject . '))\s+(?P<complement>[a-zA-Z0-9\s,\'.-]+)\?$/i',
-            ],
-        ];
+    /**
+     * @return array<string, array{title: string, formula: string, description: ?string, valid: array<int, string>, invalid: array<string, string>}>
+     */
+    public static function getExamples(): array
+    {
+        return collect(self::getPatterns())
+            ->mapWithKeys(fn (array $language, string $code): array => [
+                $code => [
+                    'title' => $language['name'],
+                    'formula' => $language['formula'],
+                    'description' => $language['description'],
+                    'valid' => $language['valid'],
+                    'invalid' => $language['invalid'],
+                ],
+            ])
+            ->all();
     }
 
     /**
@@ -41,7 +57,7 @@ class SentenceValidatorService
         $patterns = self::getPatterns();
         $sentence = trim($rawInput);
 
-        if (empty($sentence)) {
+        if ($sentence === '') {
             return [
                 'is_valid' => false,
                 'type' => null,
@@ -76,13 +92,16 @@ class SentenceValidatorService
 
         if ($matchedCategory) {
             $parsed = $this->extractComponents($matchedCategory, $matchData, $normalizedSentence);
-            $typeName = $patterns[$matchedCategory]['name'];
+            $matchedPattern = $patterns[$matchedCategory];
+            $typeName = $matchedPattern['name'];
+
             return [
                 'is_valid' => true,
                 'type' => $matchedCategory,
+                'language_id' => $matchedPattern['id'],
                 'type_name' => $typeName,
-                'formula' => $patterns[$matchedCategory]['formula'],
-                'pattern_used' => $patterns[$matchedCategory]['pattern'],
+                'formula' => $matchedPattern['formula'],
+                'pattern_used' => $matchedPattern['pattern'],
                 'feedback' => "¡Excelente! La oración es gramaticalmente válida como '{$typeName}'.",
                 'components' => $parsed,
                 'error' => null,
@@ -90,11 +109,12 @@ class SentenceValidatorService
         }
 
         // If not matched, diagnose detailed error
-        $diagnosis = $this->diagnoseError($normalizedSentence, $selectedType);
+        $diagnosis = $this->diagnoseError($normalizedSentence, $selectedType, $patterns);
 
         return [
             'is_valid' => false,
             'type' => $selectedType,
+            'language_id' => $selectedType && isset($patterns[$selectedType]) ? $patterns[$selectedType]['id'] : null,
             'feedback' => $diagnosis['feedback'],
             'error_type' => $diagnosis['error_code'],
             'suggestion' => $diagnosis['suggestion'] ?? null,
@@ -108,11 +128,11 @@ class SentenceValidatorService
      */
     private function extractComponents(string $type, array $matches, string $sentence): array
     {
-        $whWord = !empty($matches['wh_word']) ? $matches['wh_word'] : null;
+        $whWord = ! empty($matches['wh_word']) ? $matches['wh_word'] : null;
 
         $verb = null;
         foreach (['verb_am', 'verb_is', 'verb_are', 'verb_was', 'verb_were'] as $vKey) {
-            if (!empty($matches[$vKey])) {
+            if (! empty($matches[$vKey])) {
                 $verb = $matches[$vKey];
                 break;
             }
@@ -120,13 +140,13 @@ class SentenceValidatorService
 
         $subject = null;
         foreach (['subject_i', 'subject_singular', 'subject_plural', 'subject_was', 'subject_were'] as $sKey) {
-            if (!empty($matches[$sKey])) {
+            if (! empty($matches[$sKey])) {
                 $subject = $matches[$sKey];
                 break;
             }
         }
 
-        $complement = !empty($matches['complement']) ? $matches['complement'] : '(Opcional / Implícito)';
+        $complement = ! empty($matches['complement']) ? $matches['complement'] : '(Opcional / Implícito)';
 
         $subjectType = $this->classifySubject($subject);
 
@@ -136,7 +156,7 @@ class SentenceValidatorService
             'tense' => in_array(strtolower($verb ?? ''), ['was', 'were']) ? 'Pasado' : 'Presente',
             'subject' => $subject,
             'subject_type' => $subjectType,
-            'complement' => trim((string)$complement) !== '' ? trim((string)$complement) : '(Ninguno)',
+            'complement' => trim((string) $complement) !== '' ? trim((string) $complement) : '(Ninguno)',
             'ends_with_question_mark' => str_ends_with($sentence, '?'),
         ];
     }
@@ -146,7 +166,9 @@ class SentenceValidatorService
      */
     public function classifySubject(?string $subject): string
     {
-        if (!$subject) return 'Desconocido';
+        if (! $subject) {
+            return 'Desconocido';
+        }
 
         $subLower = strtolower(trim($subject));
 
@@ -172,9 +194,8 @@ class SentenceValidatorService
     /**
      * Intelligent diagnosis of common regex / grammar mistakes
      */
-    private function diagnoseError(string $sentence, ?string $selectedType): array
+    private function diagnoseError(string $sentence, ?string $selectedType, array $patterns): array
     {
-        $patterns = self::getPatterns();
         $hasQuestionMark = str_ends_with($sentence, '?');
         $cleanSentence = rtrim($sentence, '?');
         $words = preg_split('/\s+/', trim($cleanSentence));
@@ -182,13 +203,13 @@ class SentenceValidatorService
         $firstLower = strtolower($firstWord);
 
         // 1. Missing Question Mark
-        if (!$hasQuestionMark) {
-            $testWithMark = $sentence . '?';
+        if (! $hasQuestionMark) {
+            $testWithMark = $sentence.'?';
             $testResult = $this->validate($testWithMark, $selectedType);
             if ($testResult['is_valid']) {
                 return [
                     'error_code' => 'MISSING_QUESTION_MARK',
-                    'feedback' => "La estructura es correcta, pero le falta el signo de interrogación final (?).",
+                    'feedback' => 'La estructura es correcta, pero le falta el signo de interrogación final (?).',
                     'suggestion' => $testWithMark,
                     'details' => "Recuerda que todas las preguntas en inglés terminan con '?'.",
                 ];
@@ -201,11 +222,11 @@ class SentenceValidatorService
                 $verb = $words[1];
                 $subject = $words[0];
                 $rest = implode(' ', array_slice($words, 2));
-                $suggested = ucfirst($verb) . " " . lcfirst($subject) . ($rest ? " " . $rest : "") . "?";
+                $suggested = ucfirst($verb).' '.lcfirst($subject).($rest ? ' '.$rest : '').'?';
 
                 return [
                     'error_code' => 'AFFIRMATIVE_INSTEAD_OF_QUESTION',
-                    'feedback' => "Has ingresado una oración afirmativa en lugar de una pregunta.",
+                    'feedback' => 'Has ingresado una oración afirmativa en lugar de una pregunta.',
                     'suggestion' => $suggested,
                     'details' => "Para formar una pregunta con el verbo TO BE, debes invertir el orden: coloca el verbo al inicio ('{$verb} {$subject} ...?').",
                 ];
@@ -220,30 +241,33 @@ class SentenceValidatorService
 
             if (in_array($subLower, ['you', 'we', 'they']) && in_array($firstLower, ['is', 'was'])) {
                 $correctVerb = ($firstLower === 'is') ? 'Are' : 'Were';
+
                 return [
                     'error_code' => 'SUBJECT_VERB_DISAGREEMENT',
                     'feedback' => "Error de concordancia: el sujeto '{$subject}' no concuerda con el verbo '{$verb}'.",
-                    'suggestion' => preg_replace('/^' . preg_quote($verb, '/') . '/i', $correctVerb, $sentence),
+                    'suggestion' => preg_replace('/^'.preg_quote($verb, '/').'/i', $correctVerb, $sentence),
                     'details' => "Con '{$subject}' debes usar '{$correctVerb}' en lugar de '{$verb}'.",
                 ];
             }
 
             if (in_array($subLower, ['he', 'she', 'it']) && in_array($firstLower, ['are', 'were', 'am'])) {
                 $correctVerb = ($firstLower === 'were') ? 'Was' : 'Is';
+
                 return [
                     'error_code' => 'SUBJECT_VERB_DISAGREEMENT',
                     'feedback' => "Error de concordancia: el sujeto '{$subject}' es 3ra persona singular y no concuerda con '{$verb}'.",
-                    'suggestion' => preg_replace('/^' . preg_quote($verb, '/') . '/i', $correctVerb, $sentence),
+                    'suggestion' => preg_replace('/^'.preg_quote($verb, '/').'/i', $correctVerb, $sentence),
                     'details' => "Con '{$subject}' debes usar '{$correctVerb}' en lugar de '{$verb}'.",
                 ];
             }
 
             if ($subLower === 'i' && in_array($firstLower, ['is', 'are', 'were'])) {
                 $correctVerb = ($firstLower === 'were') ? 'Was' : 'Am';
+
                 return [
                     'error_code' => 'SUBJECT_VERB_DISAGREEMENT',
                     'feedback' => "Error de concordancia: el pronombre 'I' requiere '{$correctVerb}', no '{$verb}'.",
-                    'suggestion' => preg_replace('/^' . preg_quote($verb, '/') . '/i', $correctVerb, $sentence),
+                    'suggestion' => preg_replace('/^'.preg_quote($verb, '/').'/i', $correctVerb, $sentence),
                     'details' => "Con 'I' debes usar '{$correctVerb}'.",
                 ];
             }
@@ -253,18 +277,18 @@ class SentenceValidatorService
         $whWords = ['what', 'where', 'when', 'who', 'why', 'how', 'which'];
         if (in_array($firstLower, $whWords)) {
             $wh = $firstWord;
-            if (isset($words[1]) && !in_array(strtolower($words[1]), ['am', 'is', 'are', 'was', 'were'])) {
+            if (isset($words[1]) && ! in_array(strtolower($words[1]), ['am', 'is', 'are', 'was', 'were'])) {
                 if (isset($words[2]) && in_array(strtolower($words[2]), ['am', 'is', 'are', 'was', 'were'])) {
                     $subject = $words[1];
                     $verb = $words[2];
                     $rest = implode(' ', array_slice($words, 3));
-                    $suggested = "{$wh} {$verb} {$subject}" . ($rest ? " " . $rest : "") . "?";
+                    $suggested = "{$wh} {$verb} {$subject}".($rest ? ' '.$rest : '').'?';
 
                     return [
                         'error_code' => 'WH_WORD_ORDER',
-                        'feedback' => "Error de orden sintáctico en la pregunta Wh-.",
+                        'feedback' => 'Error de orden sintáctico en la pregunta Wh-.',
                         'suggestion' => $suggested,
-                        'details' => "En preguntas de información (Wh-), la estructura correcta es: Palabra Wh- + Verbo To Be + Sujeto + Complemento + ?.",
+                        'details' => 'En preguntas de información (Wh-), la estructura correcta es: Palabra Wh- + Verbo To Be + Sujeto + Complemento + ?.',
                     ];
                 }
 
@@ -283,6 +307,7 @@ class SentenceValidatorService
                 if ($otherKey !== $selectedType && preg_match($otherPattern['pattern'], $sentence)) {
                     $targetName = $patterns[$selectedType]['name'];
                     $otherName = $otherPattern['name'];
+
                     return [
                         'error_code' => 'WRONG_TYPE_SELECTED',
                         'feedback' => "La oración es válida, pero pertenece a la categoría '{$otherName}', no a '{$targetName}'.",

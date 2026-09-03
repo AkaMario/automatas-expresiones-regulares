@@ -2,17 +2,23 @@
 
 namespace Tests\Feature;
 
+use Database\Seeders\LanguageSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ChatbotPageTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_home_page_renders_the_chatbot_workspace(): void
     {
+        $this->seed(LanguageSeeder::class);
+
         $response = $this->get('/');
 
         $response
             ->assertOk()
-            ->assertSee('RegexBot')
+            ->assertSee('Chatbot de expresiones regulares')
             ->assertSee('Categorías')
             ->assertSee('Detección Automática')
             ->assertSee('Escribe una pregunta en inglés', false)

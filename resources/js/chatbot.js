@@ -202,6 +202,36 @@ function renderValidationResult(data) {
     appendBotMessage(cardHtml);
 }
 
+async function loadConversationHistory() {
+    const historyUrl = getHistoryUrl();
+
+    if (!historyUrl) {
+        return;
+    }
+
+    try {
+        const response = await fetch(historyUrl, {
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+        const data = await response.json();
+        const messages = data.conversation?.messages || [];
+
+        if (data.conversation?.user_name) {
+            currentUserName = data.conversation.user_name;
+        }
+
+        messages.forEach((message) => {
+            appendUserMessage(message.user_message);
+            renderValidationResult({ validation: message.validation });
+            updateStats(message.is_valid);
+        });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 function validationComponents(validation) {
     const components = validation.components;
 
@@ -304,7 +334,7 @@ function appendBotMessage(contentHtml) {
     botDiv.className = 'chat-bubble-bot max-w-3xl mx-auto';
     botDiv.innerHTML = `
         <div class="space-y-3 text-sm text-zinc-200">
-            <p class="text-xs font-medium text-zinc-500">RegexBot</p>
+            <p class="text-xs font-medium text-zinc-500">BOT</p>
             ${contentHtml}
         </div>
     `;
@@ -368,6 +398,10 @@ function getValidateUrl() {
     return document.getElementById('chatbotApp')?.dataset.validateUrl || '/api/validate';
 }
 
+function getHistoryUrl() {
+    return document.getElementById('chatbotApp')?.dataset.historyUrl || null;
+}
+
 function escapeHtml(value) {
     if (!value) {
         return '';
@@ -425,4 +459,8 @@ Object.assign(window, {
     setUserName,
     skipUserName,
     toggleSidebar,
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadConversationHistory();
 });

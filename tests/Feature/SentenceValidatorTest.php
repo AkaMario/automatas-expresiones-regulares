@@ -3,16 +3,23 @@
 namespace Tests\Feature;
 
 use App\Services\SentenceValidatorService;
+use Database\Seeders\LanguageSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SentenceValidatorTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected SentenceValidatorService $validator;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->validator = new SentenceValidatorService();
+
+        $this->seed(LanguageSeeder::class);
+
+        $this->validator = new SentenceValidatorService;
     }
 
     public function test_yes_no_present_valid_sentences(): void
@@ -121,6 +128,11 @@ class SentenceValidatorTest extends TestCase
                     'type' => 'YES_NO_PRESENT',
                 ],
             ]);
+
+        $this->assertDatabaseHas('conversation_messages', [
+            'user_message' => 'Is she a nice girl?',
+            'is_valid' => true,
+        ]);
     }
 
     public function test_api_examples_endpoint(): void
@@ -134,5 +146,22 @@ class SentenceValidatorTest extends TestCase
                     'PAST_WAS_WERE',
                 ],
             ]);
+    }
+
+    public function test_conversation_history_returns_messages_from_database(): void
+    {
+        $this->postJson('/api/validate', [
+            'message' => 'Is she a nice girl?',
+            'type' => 'YES_NO_PRESENT',
+            'user_name' => 'Carlos',
+        ])->assertOk();
+
+        $response = $this->getJson('/api/conversation/history');
+
+        $response->assertOk()
+            ->assertJsonPath('conversation.user_name', 'Carlos')
+            ->assertJsonPath('conversation.messages.0.user_message', 'Is she a nice girl?')
+            ->assertJsonPath('conversation.messages.0.is_valid', true)
+            ->assertJsonPath('conversation.messages.0.matched_language.code', 'YES_NO_PRESENT');
     }
 }

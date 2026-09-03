@@ -1,7 +1,7 @@
 <div class="chat-bubble-bot max-w-3xl mx-auto">
     <div class="space-y-4 text-sm text-zinc-200">
         <div>
-            <p class="text-xs font-medium text-zinc-500 mb-1">RegexBot</p>
+            <p class="text-xs font-medium text-zinc-500 mb-1">BOT</p>
             <p>Te ayudaré a validar oraciones interrogativas en inglés con el verbo <strong>TO BE</strong> en presente y pasado usando expresiones regulares.</p>
         </div>
 

@@ -2,6 +2,19 @@
 
 <aside id="chatSidebar" class="w-72 sm:w-80 border-r border-zinc-800 bg-zinc-950 flex flex-col shrink-0 overflow-y-auto transition-[width,opacity,transform] duration-200">
     <div class="p-3 border-b border-zinc-800">
+        <button type="button" data-chat-action="new-chat" class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-left text-xs font-medium text-zinc-100 transition hover:bg-zinc-800">
+            Nuevo chat
+        </button>
+    </div>
+
+    <div class="p-3 border-b border-zinc-800">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">Historial</h2>
+        <div id="conversationList" class="space-y-1 text-xs text-zinc-400">
+            <p class="px-3 py-2 text-zinc-600">Sin chats guardados</p>
+        </div>
+    </div>
+
+    <div class="p-3 border-b border-zinc-800">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3 flex items-center justify-between">
             <span>Categorías</span>
             <span id="selectedCategoryBadge" class="text-[10px] font-medium px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-300 border border-zinc-800">Auto</span>

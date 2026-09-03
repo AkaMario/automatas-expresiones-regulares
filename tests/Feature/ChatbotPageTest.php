@@ -19,11 +19,14 @@ class ChatbotPageTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('Chatbot de expresiones regulares')
+            ->assertSee('Nuevo chat')
+            ->assertSee('Historial')
             ->assertSee('Categorías')
             ->assertSee('Detección Automática')
             ->assertSee('Escribe una pregunta en inglés', false)
             ->assertSee('Especificación de Expresiones Regulares')
             ->assertSee('data-chat-action="toggle-sidebar"', false)
+            ->assertSee('id="conversationList"', false)
             ->assertDontSee('fa-'.'robot', false);
     }
 }

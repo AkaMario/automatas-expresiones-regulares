@@ -164,4 +164,46 @@ class SentenceValidatorTest extends TestCase
             ->assertJsonPath('conversation.messages.0.is_valid', true)
             ->assertJsonPath('conversation.messages.0.matched_language.code', 'YES_NO_PRESENT');
     }
+
+    public function test_new_chat_endpoint_creates_a_separate_active_conversation(): void
+    {
+        $this->withSession(['chat_session_id' => 'test-chat-session']);
+
+        $this->postJson('/api/validate', [
+            'message' => 'Is she a nice girl?',
+            'type' => 'YES_NO_PRESENT',
+            'user_name' => 'Carlos',
+        ])->assertOk();
+
+        $newChatResponse = $this->postJson('/api/conversations')
+            ->assertCreated()
+            ->assertJsonPath('conversation.title', 'Nuevo chat')
+            ->assertJsonPath('conversation.messages', []);
+
+        $newConversationId = $newChatResponse->json('conversation.id');
+
+        $this->postJson('/api/validate', [
+            'message' => 'Were you a good student?',
+            'type' => 'PAST_WAS_WERE',
+            'user_name' => 'Carlos',
+            'conversation_id' => $newConversationId,
+        ])->assertOk();
+
+        $historyResponse = $this->getJson('/api/conversation/history');
+
+        $historyResponse->assertOk()
+            ->assertJsonCount(2, 'conversations')
+            ->assertJsonPath('conversation.id', $newConversationId)
+            ->assertJsonPath('conversation.messages.0.user_message', 'Were you a good student?');
+
+        $this->assertDatabaseHas('conversations', [
+            'session_id' => 'test-chat-session',
+            'title' => 'Is she a nice girl?',
+        ]);
+
+        $this->assertDatabaseHas('conversations', [
+            'session_id' => 'test-chat-session',
+            'title' => 'Were you a good student?',
+        ]);
+    }
 }

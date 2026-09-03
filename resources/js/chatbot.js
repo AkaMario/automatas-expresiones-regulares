@@ -1,5 +1,7 @@
 let currentUserName = 'Estudiante';
 let currentCategory = null;
+let currentConversationId = null;
+let initialChatMarkup = '';
 let totalEvaluated = 0;
 let totalValid = 0;
 let totalInvalid = 0;
@@ -141,6 +143,7 @@ async function validateSentence(sentence, category) {
                 message: sentence,
                 type: category,
                 user_name: currentUserName,
+                conversation_id: currentConversationId,
             }),
         });
 
@@ -148,8 +151,10 @@ async function validateSentence(sentence, category) {
         removeTypingIndicator(typingId);
 
         if (data.success) {
+            currentConversationId = data.conversation?.id || currentConversationId;
             renderValidationResult(data);
             updateStats(data.validation.is_valid);
+            await loadConversationHistory(currentConversationId, { preserveMessages: true });
         } else {
             appendBotMessage('Ocurrió un error al procesar la oración.');
         }
@@ -202,7 +207,7 @@ function renderValidationResult(data) {
     appendBotMessage(cardHtml);
 }
 
-async function loadConversationHistory() {
+async function loadConversationHistory(conversationId = null, options = {}) {
     const historyUrl = getHistoryUrl();
 
     if (!historyUrl) {
@@ -210,13 +215,28 @@ async function loadConversationHistory() {
     }
 
     try {
-        const response = await fetch(historyUrl, {
+        const url = new URL(historyUrl, window.location.origin);
+
+        if (conversationId) {
+            url.searchParams.set('conversation_id', conversationId);
+        }
+
+        const response = await fetch(url, {
             headers: {
                 Accept: 'application/json',
             },
         });
         const data = await response.json();
+        renderConversationList(data.conversations || [], data.conversation?.id || null);
+
+        if (options.preserveMessages) {
+            return;
+        }
+
         const messages = data.conversation?.messages || [];
+        currentConversationId = data.conversation?.id || null;
+
+        resetChat();
 
         if (data.conversation?.user_name) {
             currentUserName = data.conversation.user_name;
@@ -376,6 +396,118 @@ function clearInput() {
     input.focus();
 }
 
+async function startNewChat() {
+    const newChatUrl = getNewChatUrl();
+
+    if (!newChatUrl) {
+        return;
+    }
+
+    try {
+        const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const response = await fetch(newChatUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': token,
+                Accept: 'application/json',
+            },
+        });
+        const data = await response.json();
+
+        currentConversationId = data.conversation?.id || null;
+        resetChat();
+        renderConversationList(data.conversations || [], currentConversationId);
+        document.getElementById('sentenceInput').focus();
+    } catch (error) {
+        console.error(error);
+        appendBotMessage('No se pudo iniciar un nuevo chat.');
+    }
+}
+
+function renderConversationList(conversations, activeConversationId) {
+    const list = document.getElementById('conversationList');
+
+    if (!list) {
+        return;
+    }
+
+    if (!conversations.length) {
+        list.innerHTML = '<p class="px-3 py-2 text-zinc-600">Sin chats guardados</p>';
+        return;
+    }
+
+    list.innerHTML = conversations.map((conversation) => {
+        const isActive = Number(conversation.id) === Number(activeConversationId);
+        const activeClasses = isActive
+            ? 'border-zinc-700 bg-zinc-900 text-zinc-100'
+            : 'border-transparent bg-transparent text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100';
+        const buttonClasses = isActive
+            ? 'border-zinc-600 bg-zinc-100 text-black'
+            : 'border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-100';
+
+        return `
+            <div class="rounded-lg border px-3 py-2 transition ${activeClasses}">
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        data-chat-action="open-chat"
+                        data-conversation-id="${conversation.id}"
+                        class="min-w-0 flex-1 text-left"
+                    >
+                        <span class="block truncate text-xs font-medium">${escapeHtml(conversation.title || 'Nuevo chat')}</span>
+                        <span class="block text-[10px] text-zinc-600">${conversation.messages_count || 0} mensajes</span>
+                    </button>
+                    <button
+                        type="button"
+                        data-chat-action="open-chat"
+                        data-conversation-id="${conversation.id}"
+                        class="shrink-0 rounded-md border px-2 py-1 text-[10px] font-medium transition ${buttonClasses}"
+                        aria-label="Abrir ${escapeHtml(conversation.title || 'chat')}"
+                    >
+                        Abrir
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function resetChat() {
+    const chat = document.getElementById('chatMessages');
+    chat.innerHTML = initialChatMarkup;
+    resetStats();
+    currentCategory = null;
+
+    document.querySelectorAll('.category-btn').forEach((button) => {
+        const buttonCategory = button.getAttribute('data-category');
+        const check = button.querySelector('.checkmark');
+
+        if (!buttonCategory) {
+            button.classList.add('border-zinc-600', 'bg-zinc-900', 'text-zinc-100');
+            button.classList.remove('border-transparent', 'bg-transparent', 'text-zinc-400');
+            check?.classList.remove('hidden');
+        } else {
+            button.classList.remove('border-zinc-600', 'bg-zinc-900', 'text-zinc-100');
+            button.classList.add('border-transparent', 'bg-transparent', 'text-zinc-400');
+            check?.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('selectedCategoryBadge').innerText = 'Auto';
+    document.getElementById('activeFormula').innerText = 'Detección Automática';
+}
+
+function resetStats() {
+    totalEvaluated = 0;
+    totalValid = 0;
+    totalInvalid = 0;
+
+    document.getElementById('statTotal').innerText = totalEvaluated;
+    document.getElementById('statValid').innerText = totalValid;
+    document.getElementById('statInvalid').innerText = totalInvalid;
+}
+
 function toggleSidebar() {
     document.body.classList.toggle('sidebar-collapsed');
 }
@@ -400,6 +532,10 @@ function getValidateUrl() {
 
 function getHistoryUrl() {
     return document.getElementById('chatbotApp')?.dataset.historyUrl || null;
+}
+
+function getNewChatUrl() {
+    return document.getElementById('chatbotApp')?.dataset.newChatUrl || null;
 }
 
 function escapeHtml(value) {
@@ -448,6 +584,14 @@ document.addEventListener('click', (event) => {
     if (actionButton.dataset.chatAction === 'try-correction') {
         sendCustomMessage(actionButton.dataset.sentence, actionButton.dataset.category || null);
     }
+
+    if (actionButton.dataset.chatAction === 'new-chat') {
+        startNewChat();
+    }
+
+    if (actionButton.dataset.chatAction === 'open-chat') {
+        loadConversationHistory(actionButton.dataset.conversationId);
+    }
 });
 
 Object.assign(window, {
@@ -457,10 +601,12 @@ Object.assign(window, {
     selectCategory,
     sendCustomMessage,
     setUserName,
+    startNewChat,
     skipUserName,
     toggleSidebar,
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    initialChatMarkup = document.getElementById('chatMessages').innerHTML;
     loadConversationHistory();
 });

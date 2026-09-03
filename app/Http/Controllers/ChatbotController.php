@@ -41,9 +41,9 @@ class ChatbotController extends Controller
         $result = $this->validator->validate($input, $type);
 
         if ($result['is_valid']) {
-            $botText = "🎉 ¡Excelente trabajo, {$userName}! Tu oración es **GRAMATICALMENTE VÁLIDA** según el patrón de Expresión Regular.";
+            $botText = "¡Excelente trabajo, {$userName}! Tu oración es **GRAMATICALMENTE VÁLIDA** según el patrón de Expresión Regular.";
         } else {
-            $botText = "⚠️ Hola {$userName}, la oración ingresada es **INVÁLIDA** según las reglas gramaticales.";
+            $botText = "Hola {$userName}, la oración ingresada es **INVÁLIDA** según las reglas gramaticales.";
         }
 
         return response()->json([
@@ -51,9 +51,9 @@ class ChatbotController extends Controller
             'bot_message' => $botText,
             'validation' => $result,
             'quick_replies' => [
-                ['label' => '✨ Probar otra frase', 'action' => 'continue'],
-                ['label' => '🔄 Cambiar de categoría', 'action' => 'change_type'],
-                ['label' => '📚 Ver ejemplos válidos', 'action' => 'show_examples'],
+                ['label' => 'Probar otra frase', 'action' => 'continue'],
+                ['label' => 'Cambiar de categoría', 'action' => 'change_type'],
+                ['label' => 'Ver ejemplos válidos', 'action' => 'show_examples'],
             ],
         ]);
     }

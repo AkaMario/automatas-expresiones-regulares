@@ -32,7 +32,7 @@
         <div class="grid grid-cols-1 gap-2 text-xs">
             <x-chat.category-button
                 title="Detección Automática"
-                description="Valida cualquier tipo de pregunta"
+                description="Valida preguntas Yes/No en presente"
                 active
             />
 
@@ -42,23 +42,25 @@
                 description="Am / Is / Are + Sujeto + Comp + ?"
             />
 
-            <x-chat.category-button
-                category="WH_QUESTION"
-                title="2. Wh- Questions"
-                description="Wh- + To Be + Sujeto + Comp + ?"
-            />
+            {{--
+                <x-chat.category-button
+                    category="WH_QUESTION"
+                    title="2. Wh- Questions"
+                    description="Wh- + To Be + Sujeto + Comp + ?"
+                />
 
-            <x-chat.category-button
-                category="PAST_WAS_WERE"
-                title="3. Pasado (Was / Were)"
-                description="Was / Were + Sujeto + Comp + ?"
-            />
+                <x-chat.category-button
+                    category="PAST_WAS_WERE"
+                    title="3. Pasado (Was / Were)"
+                    description="Was / Were + Sujeto + Comp + ?"
+                />
+            --}}
         </div>
     </div>
 
-    <footer class="mt-auto p-3 bg-zinc-950 border-t border-zinc-800 text-[11px] text-zinc-500 grid grid-cols-3 gap-2">
+    {{-- <footer class="mt-auto p-3 bg-zinc-950 border-t border-zinc-800 text-[11px] text-zinc-500 grid grid-cols-3 gap-2">
         <span>Total <strong id="statTotal" class="block text-zinc-100 text-sm">0</strong></span>
         <span>Válidas <strong id="statValid" class="block text-zinc-100 text-sm">0</strong></span>
         <span>Inválidas <strong id="statInvalid" class="block text-zinc-100 text-sm">0</strong></span>
-    </footer>
+    </footer> --}}
 </aside>

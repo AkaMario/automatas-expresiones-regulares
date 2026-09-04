@@ -84,7 +84,8 @@ class LanguageSeeder extends Seeder
                     'Why you are sad?' => 'Orden incorrecto: debe ser "Why are you sad?".',
                     'Who is you?' => 'Concordancia: "you" requiere "are" o "were".',
                 ],
-                'is_active' => true,
+                'is_active' => false,
+                // 'is_active' => true,
                 'sort_order' => 2,
             ],
             [
@@ -107,7 +108,8 @@ class LanguageSeeder extends Seeder
                     'Was they in Barranquilla?' => 'Concordancia incorrecta: "they" requiere "Were".',
                     'Were she sick last week?' => 'Concordancia incorrecta: "she" requiere "Was".',
                 ],
-                'is_active' => true,
+                'is_active' => false,
+                // 'is_active' => true,
                 'sort_order' => 3,
             ],
         ];

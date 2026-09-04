@@ -6,6 +6,20 @@ use App\Models\Language;
 
 class SentenceValidatorService
 {
+    private const ENABLED_LANGUAGE_CODES = [
+        'YES_NO_PRESENT',
+        // 'WH_QUESTION',
+        // 'PAST_WAS_WERE',
+    ];
+
+    /**
+     * @return array<int, string>
+     */
+    public static function enabledLanguageCodes(): array
+    {
+        return self::ENABLED_LANGUAGE_CODES;
+    }
+
     /**
      * Get regex definitions for all question types
      *
@@ -15,6 +29,7 @@ class SentenceValidatorService
     {
         return Language::query()
             ->active()
+            ->whereIn('code', self::ENABLED_LANGUAGE_CODES)
             ->ordered()
             ->get()
             ->mapWithKeys(fn (Language $language): array => [
@@ -102,7 +117,7 @@ class SentenceValidatorService
                 'type_name' => $typeName,
                 'formula' => $matchedPattern['formula'],
                 'pattern_used' => $matchedPattern['pattern'],
-                'feedback' => "¡Excelente! La oración es gramaticalmente válida como '{$typeName}'.",
+                'feedback' => "¡Excelente! La oración es gramaticalmente correcta si deseas continuar escribe otra pregunta.",
                 'components' => $parsed,
                 'error' => null,
             ];

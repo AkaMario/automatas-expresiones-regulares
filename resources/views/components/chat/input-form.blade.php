@@ -5,7 +5,7 @@
                 <input
                     type="text"
                     id="sentenceInput"
-                    placeholder="Escribe una pregunta en inglés (Ej: Is she a nice girl?)..."
+                    placeholder="Escribe tu nombre para comenzar..."
                     class="w-full pl-4 pr-10 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 font-mono transition"
                     autocomplete="off"
                 >
@@ -26,7 +26,8 @@
 
         <div class="flex flex-wrap items-center justify-between text-[11px] text-zinc-500 px-1 gap-2">
             <div>
-                <span>Fórmula actual: <code id="activeFormula" class="text-zinc-300 font-mono">Detección Automática</code></span>
+                <span id="inputHelperText">Primero dime cómo te llamas.</span>
+                <span class="hidden">Fórmula actual: <code id="activeFormula" class="text-zinc-300 font-mono">Detección Automática</code></span>
             </div>
             {{-- <div class="flex items-center gap-2">
                 <button type="button" onclick="sendCustomMessage('Where is the cat?', 'WH_QUESTION')" class="hover:text-zinc-300 underline">Ejemplo Wh-</button>

@@ -48,61 +48,61 @@ class SentenceValidatorTest extends TestCase
         }
     }
 
-    public function test_wh_questions_valid_sentences(): void
-    {
-        $validExamples = [
-            'Where is the cat?',
-            'Who is she?',
-            'Why are you happy?',
-            'Where were you yesterday?',
-            'What is Cartagena?',
-            'How are the boys today?',
-            'When was Maria sick?',
-            'Which is this pencil?',
-            'Why was the dog furious?',
-            'Where were they in Barranquilla?',
-        ];
+    // public function test_wh_questions_valid_sentences(): void
+    // {
+    //     $validExamples = [
+    //         'Where is the cat?',
+    //         'Who is she?',
+    //         'Why are you happy?',
+    //         'Where were you yesterday?',
+    //         'What is Cartagena?',
+    //         'How are the boys today?',
+    //         'When was Maria sick?',
+    //         'Which is this pencil?',
+    //         'Why was the dog furious?',
+    //         'Where were they in Barranquilla?',
+    //     ];
+    //
+    //     foreach ($validExamples as $sentence) {
+    //         $result = $this->validator->validate($sentence, 'WH_QUESTION');
+    //         $this->assertTrue($result['is_valid'], "Expected '{$sentence}' to be valid for WH_QUESTION.");
+    //         $this->assertEquals('WH_QUESTION', $result['type']);
+    //         $this->assertNotEmpty($result['components']['wh_word']);
+    //         $this->assertNotEmpty($result['components']['verb']);
+    //         $this->assertNotEmpty($result['components']['subject']);
+    //     }
+    // }
 
-        foreach ($validExamples as $sentence) {
-            $result = $this->validator->validate($sentence, 'WH_QUESTION');
-            $this->assertTrue($result['is_valid'], "Expected '{$sentence}' to be valid for WH_QUESTION.");
-            $this->assertEquals('WH_QUESTION', $result['type']);
-            $this->assertNotEmpty($result['components']['wh_word']);
-            $this->assertNotEmpty($result['components']['verb']);
-            $this->assertNotEmpty($result['components']['subject']);
-        }
-    }
-
-    public function test_past_was_were_valid_sentences(): void
-    {
-        $validExamples = [
-            'Were you a good student?',
-            'Were they in Barranquilla yesterday?',
-            'Was the dog furious?',
-            'Was Maria sick last week?',
-            'Was I late?',
-            'Was this pencil black?',
-            'Were the boys happy?',
-            'Was that car fast?',
-            'Were those tables clean?',
-        ];
-
-        foreach ($validExamples as $sentence) {
-            $result = $this->validator->validate($sentence, 'PAST_WAS_WERE');
-            $this->assertTrue($result['is_valid'], "Expected '{$sentence}' to be valid for PAST_WAS_WERE.");
-            $this->assertEquals('PAST_WAS_WERE', $result['type']);
-            $this->assertNotEmpty($result['components']['verb']);
-            $this->assertNotEmpty($result['components']['subject']);
-        }
-    }
+    // public function test_past_was_were_valid_sentences(): void
+    // {
+    //     $validExamples = [
+    //         'Were you a good student?',
+    //         'Were they in Barranquilla yesterday?',
+    //         'Was the dog furious?',
+    //         'Was Maria sick last week?',
+    //         'Was I late?',
+    //         'Was this pencil black?',
+    //         'Were the boys happy?',
+    //         'Was that car fast?',
+    //         'Were those tables clean?',
+    //     ];
+    //
+    //     foreach ($validExamples as $sentence) {
+    //         $result = $this->validator->validate($sentence, 'PAST_WAS_WERE');
+    //         $this->assertTrue($result['is_valid'], "Expected '{$sentence}' to be valid for PAST_WAS_WERE.");
+    //         $this->assertEquals('PAST_WAS_WERE', $result['type']);
+    //         $this->assertNotEmpty($result['components']['verb']);
+    //         $this->assertNotEmpty($result['components']['subject']);
+    //     }
+    // }
 
     public function test_invalid_sentences_give_feedback(): void
     {
         $invalidCases = [
             'Is you a student?' => 'SUBJECT_VERB_DISAGREEMENT',
             'Am I a teacher' => 'MISSING_QUESTION_MARK',
-            'Where she is?' => 'WH_WORD_ORDER',
-            'Was they in Barranquilla yesterday?' => 'SUBJECT_VERB_DISAGREEMENT',
+            // 'Where she is?' => 'WH_WORD_ORDER',
+            // 'Was they in Barranquilla yesterday?' => 'SUBJECT_VERB_DISAGREEMENT',
             'She is my girlfriend.' => 'AFFIRMATIVE_INSTEAD_OF_QUESTION',
         ];
 
@@ -128,7 +128,10 @@ class SentenceValidatorTest extends TestCase
                     'is_valid' => true,
                     'type' => 'YES_NO_PRESENT',
                 ],
-            ]);
+            ])
+            ->assertJsonPath('conversation.stats.total', 1)
+            ->assertJsonPath('conversation.stats.valid', 1)
+            ->assertJsonPath('conversation.stats.invalid', 0);
 
         $this->assertDatabaseHas('conversation_messages', [
             'user_message' => 'Is she a nice girl?',
@@ -136,17 +139,47 @@ class SentenceValidatorTest extends TestCase
         ]);
     }
 
+    public function test_api_validation_response_lists_current_chat_stats(): void
+    {
+        $this->withSession(['chat_session_id' => 'test-chat-session']);
+
+        $this->postJson('/api/validate', [
+            'message' => 'Is she a nice girl?',
+            'type' => 'YES_NO_PRESENT',
+            'user_name' => 'Carlos',
+        ])->assertOk();
+
+        $response = $this->postJson('/api/validate', [
+            'message' => 'Is you a student?',
+            'type' => 'YES_NO_PRESENT',
+            'user_name' => 'Carlos',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('conversation.stats.total', 2)
+            ->assertJsonPath('conversation.stats.valid', 1)
+            ->assertJsonPath('conversation.stats.invalid', 1);
+    }
+
     public function test_api_examples_endpoint(): void
     {
         $response = $this->getJson('/api/examples');
         $response->assertStatus(200)
-            ->assertJsonStructure([
-                'categories' => [
-                    'YES_NO_PRESENT',
-                    'WH_QUESTION',
-                    'PAST_WAS_WERE',
-                ],
-            ]);
+            ->assertJsonPath('categories.YES_NO_PRESENT.title', 'Yes/No Questions (Presente)')
+            ->assertJsonMissingPath('categories.WH_QUESTION')
+            ->assertJsonMissingPath('categories.PAST_WAS_WERE');
+    }
+
+    public function test_api_validate_returns_422_for_disabled_question_type(): void
+    {
+        $response = $this->postJson('/api/validate', [
+            'message' => 'Where is the cat?',
+            'type' => 'WH_QUESTION',
+            'user_name' => 'Carlos',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('type');
     }
 
     public function test_conversation_history_returns_messages_from_database(): void
@@ -184,8 +217,8 @@ class SentenceValidatorTest extends TestCase
         $newConversationId = $newChatResponse->json('conversation.id');
 
         $this->postJson('/api/validate', [
-            'message' => 'Were you a good student?',
-            'type' => 'PAST_WAS_WERE',
+            'message' => 'Are you a good student?',
+            'type' => 'YES_NO_PRESENT',
             'user_name' => 'Carlos',
             'conversation_id' => $newConversationId,
         ])->assertOk();
@@ -195,7 +228,7 @@ class SentenceValidatorTest extends TestCase
         $historyResponse->assertOk()
             ->assertJsonCount(2, 'conversations')
             ->assertJsonPath('conversation.id', $newConversationId)
-            ->assertJsonPath('conversation.messages.0.user_message', 'Were you a good student?');
+            ->assertJsonPath('conversation.messages.0.user_message', 'Are you a good student?');
 
         $this->assertDatabaseHas('conversations', [
             'session_id' => 'test-chat-session',
@@ -204,7 +237,7 @@ class SentenceValidatorTest extends TestCase
 
         $this->assertDatabaseHas('conversations', [
             'session_id' => 'test-chat-session',
-            'title' => 'Were you a good student?',
+            'title' => 'Are you a good student?',
         ]);
     }
 
@@ -299,8 +332,8 @@ class SentenceValidatorTest extends TestCase
         $conversationId = $newChatResponse->json('conversation.id');
 
         $this->postJson('/api/validate', [
-            'message' => 'Were you a good student?',
-            'type' => 'PAST_WAS_WERE',
+            'message' => 'Are you a good student?',
+            'type' => 'YES_NO_PRESENT',
             'user_name' => 'Carlos',
             'conversation_id' => $conversationId,
         ])->assertOk();

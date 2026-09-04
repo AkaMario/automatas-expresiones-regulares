@@ -6,50 +6,83 @@ let totalEvaluated = 0;
 let totalValid = 0;
 let totalInvalid = 0;
 let pendingDeleteConversation = null;
+let isWaitingForUserName = true;
 
 const categoryNames = {
     YES_NO_PRESENT: "Yes/No Questions (Presente)",
-    WH_QUESTION: "Wh- Questions (Información)",
-    PAST_WAS_WERE: "Questions Pasado (Was / Were)",
+    // WH_QUESTION: "Wh- Questions (Información)",
+    // PAST_WAS_WERE: "Questions Pasado (Was / Were)",
 };
 
 const categoryFormulas = {
     YES_NO_PRESENT: "Am / Is / Are + Sujeto + Complemento + ?",
-    WH_QUESTION: "Wh- Word + To Be + Sujeto + Complemento + ?",
-    PAST_WAS_WERE: "Was / Were + Sujeto + Complemento + ?",
+    // WH_QUESTION: "Wh- Word + To Be + Sujeto + Complemento + ?",
+    // PAST_WAS_WERE: "Was / Were + Sujeto + Complemento + ?",
 };
 
-function setUserName() {
-    const input = document.getElementById("userNameInput").value.trim();
+// function setUserName() {
+//     const input = document.getElementById("userNameInput").value.trim();
+//
+//     if (input) {
+//         currentUserName = input;
+//     }
+//
+//     document.getElementById("initialNamePrompt").innerHTML = `
+//         <div class="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
+//             Mucho gusto, <strong class="text-zinc-100">${escapeHtml(currentUserName)}</strong>. Ya puedes practicar.
+//         </div>
+//     `;
+//     promptCategorySelection();
+// }
 
-    if (input) {
-        currentUserName = input;
-    }
+// function skipUserName() {
+//     document.getElementById("initialNamePrompt").innerHTML = `
+//         <div class="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-400">
+//             Continuando como <strong class="text-zinc-200">Estudiante</strong>.
+//         </div>
+//     `;
+//     promptCategorySelection();
+// }
 
-    document.getElementById("initialNamePrompt").innerHTML = `
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
-            Mucho gusto, <strong class="text-zinc-100">${escapeHtml(currentUserName)}</strong>. Ya puedes practicar.
-        </div>
-    `;
+function setUserNameFromMessage(name) {
+    currentUserName = name;
+    isWaitingForUserName = false;
+
+    appendUserMessage(name);
+    appendBotMessage(`
+        <p>¡Mucho gusto, <strong>${escapeHtml(currentUserName)}</strong>!</p>
+        <p class="text-zinc-400">Vamos paso a paso, escribe una question en present para empezar a practicar</p>
+    `);
     promptCategorySelection();
+    prepareQuestionInput();
 }
 
-function skipUserName() {
-    document.getElementById("initialNamePrompt").innerHTML = `
-        <div class="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-400">
-            Continuando como <strong class="text-zinc-200">Estudiante</strong>.
-        </div>
-    `;
-    promptCategorySelection();
+function prepareQuestionInput() {
+    const inputElement = document.getElementById("sentenceInput");
+    const helperText = document.getElementById("inputHelperText");
+    const activeFormula = document.getElementById("activeFormula");
+
+    inputElement.placeholder =
+        "Escribe una pregunta en inglés (Ej: Is she a nice girl?)...";
+    helperText.innerText = "Pregunta activa:";
+    activeFormula.parentElement.classList.remove("hidden");
 }
 
 function promptCategorySelection() {
     appendBotMessage(`
-        <p>Selecciona un tipo de pregunta o escribe directamente una oración interrogativa.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 text-xs">
+        <p>Practica preguntas Yes/No en presente o escribe directamente una oración interrogativa.</p>
+        <div class="grid grid-cols-1 gap-2 pt-2 text-xs">
             ${categoryPromptButton("YES_NO_PRESENT", "Yes/No Questions (Presente)", "Yes/No Presente", "Is she a nice girl?")}
-            ${categoryPromptButton("WH_QUESTION", "Wh- Questions (Información)", "Wh- Questions", "Where is the cat?")}
-            ${categoryPromptButton("PAST_WAS_WERE", "Questions Pasado (Was/Were)", "Pasado", "Were you a good student?")}
+            ${
+                /*
+            categoryPromptButton("WH_QUESTION", "Wh- Questions (Información)", "Wh- Questions", "Where is the cat?")
+            */ ""
+            }
+            ${
+                /*
+            categoryPromptButton("PAST_WAS_WERE", "Questions Pasado (Was/Were)", "Pasado", "Were you a good student?")
+            */ ""
+            }
         </div>
     `);
 }
@@ -116,7 +149,7 @@ function selectCategory(catKey, catTitle) {
         badge.innerText = "Auto";
         formulaElement.innerText = "Detección Automática";
         appendBotMessage(
-            "Modo cambiado a <strong>Detección Automática</strong>. Puedes escribir cualquier tipo de pregunta con TO BE.",
+            "Modo cambiado a <strong>Detección Automática</strong>. Puedes escribir preguntas Yes/No en presente con TO BE.",
         );
     }
 
@@ -133,7 +166,18 @@ function handleFormSubmit(event) {
         return;
     }
 
-    validateSentence(message, currentCategory);
+    const shouldCaptureName =
+        isWaitingForUserName ||
+        (currentUserName === "Estudiante" &&
+            totalEvaluated === 0 &&
+            !message.endsWith("?"));
+
+    if (shouldCaptureName) {
+        setUserNameFromMessage(message);
+    } else {
+        validateSentence(message, currentCategory);
+    }
+
     inputElement.value = "";
 }
 
@@ -170,25 +214,47 @@ async function validateSentence(sentence, category) {
             }),
         });
 
-        const data = await response.json();
+        const data = await parseJsonResponse(response);
         removeTypingIndicator(typingId);
 
-        if (data.success) {
+        if (response.ok && data.success) {
             currentConversationId =
                 data.conversation?.id || currentConversationId;
             renderValidationResult(data);
-            updateStats(data.validation.is_valid);
+            setStats(data.conversation?.stats);
             await loadConversationHistory(currentConversationId, {
                 preserveMessages: true,
             });
         } else {
-            appendBotMessage("Ocurrió un error al procesar la oración.");
+            appendBotMessage(validationRequestError(data));
         }
     } catch (error) {
         removeTypingIndicator(typingId);
-        appendBotMessage("Error de conexión al validar la oración.");
+        appendBotMessage(
+            `Error al validar la oración. <span class="text-zinc-500">${escapeHtml(error.message)}</span>`,
+        );
         console.error(error);
     }
+}
+
+async function parseJsonResponse(response) {
+    const responseText = await response.text();
+
+    try {
+        return responseText ? JSON.parse(responseText) : {};
+    } catch (error) {
+        throw new Error(
+            `El servidor respondió ${response.status}, pero no devolvió JSON válido.`,
+        );
+    }
+}
+
+function validationRequestError(data) {
+    const typeError = data.errors?.type?.[0];
+    const message =
+        typeError || data.message || "Ocurrió un error al procesar la oración.";
+
+    return escapeHtml(message);
 }
 
 function renderValidationResult(data) {
@@ -217,20 +283,46 @@ function renderValidationResult(data) {
 
     cardHtml += `
             <div class="pt-2 border-t border-zinc-900 flex flex-wrap gap-2 text-xs">
-                <button type="button" data-chat-action="focus-input" class="rounded-md bg-zinc-900 px-3 py-1.5 text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100">
-                    Probar otra frase
-                </button>
-                <button type="button" data-chat-action="change-type" class="rounded-md bg-zinc-900 px-3 py-1.5 text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100">
-                    Cambiar tipo
-                </button>
-                <button type="button" data-chat-action="open-docs" class="rounded-md border border-zinc-800 px-3 py-1.5 text-zinc-300 transition hover:bg-zinc-900 hover:text-zinc-100">
-                    Ver documentación
+                <button type="button" data-chat-action="show-chat-summary" class="rounded-md bg-zinc-900 px-3 py-1.5 text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100">
+                    Evaluar
                 </button>
             </div>
         </div>
     `;
 
     appendBotMessage(cardHtml);
+}
+
+function conversationStatsSummary(stats) {
+    return `
+        <div class="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs">
+            <p class="mb-2 font-medium text-zinc-300">Resumen del chat actual</p>
+            <div class="grid grid-cols-3 gap-2">
+                ${statsToken("Evaluadas", stats.total)}
+                ${statsToken("Buenas", stats.valid)}
+                ${statsToken("Malas", stats.invalid)}
+            </div>
+        </div>
+    `;
+}
+
+function statsToken(label, value) {
+    return `
+        <div class="rounded-md border border-zinc-900 bg-black p-2">
+            <span class="block text-[10px] text-zinc-500">${label}</span>
+            <span class="font-mono text-sm font-semibold text-zinc-100">${escapeHtml(value)}</span>
+        </div>
+    `;
+}
+
+function showCurrentChatSummary() {
+    appendBotMessage(
+        conversationStatsSummary({
+            total: totalEvaluated,
+            valid: totalValid,
+            invalid: totalInvalid,
+        }),
+    );
 }
 
 async function loadConversationHistory(conversationId = null, options = {}) {
@@ -270,12 +362,15 @@ async function loadConversationHistory(conversationId = null, options = {}) {
 
 function renderConversation(conversation) {
     const messages = conversation?.messages || [];
+    const hasMessages = messages.length > 0;
     currentConversationId = conversation?.id || null;
 
     resetChat();
 
-    if (conversation?.user_name) {
+    if (conversation?.user_name && hasMessages) {
         currentUserName = conversation.user_name;
+        isWaitingForUserName = false;
+        prepareQuestionInput();
     }
 
     messages.forEach((message) => {
@@ -283,6 +378,10 @@ function renderConversation(conversation) {
         renderValidationResult({ validation: message.validation });
         updateStats(message.is_valid);
     });
+
+    if (conversation?.stats) {
+        setStats(conversation.stats);
+    }
 }
 
 function validationComponents(validation) {
@@ -387,7 +486,7 @@ function appendBotMessage(contentHtml) {
     botDiv.className = "chat-bubble-bot max-w-3xl mx-auto";
     botDiv.innerHTML = `
         <div class="space-y-3 text-sm text-zinc-200">
-            <p class="text-xs font-medium text-zinc-500">BOT</p>
+            <p class="text-xs font-medium text-zinc-500">REGULARBOT</p>
             ${contentHtml}
         </div>
     `;
@@ -701,6 +800,9 @@ function resetChat() {
     chat.innerHTML = initialChatMarkup;
     resetStats();
     currentCategory = null;
+    currentUserName = "Estudiante";
+    isWaitingForUserName = true;
+    prepareNameInput();
 
     document.querySelectorAll(".category-btn").forEach((button) => {
         const buttonCategory = button.getAttribute("data-category");
@@ -737,14 +839,50 @@ function resetChat() {
     document.getElementById("activeFormula").innerText = "Detección Automática";
 }
 
+function prepareNameInput() {
+    const inputElement = document.getElementById("sentenceInput");
+    const helperText = document.getElementById("inputHelperText");
+    const activeFormula = document.getElementById("activeFormula");
+
+    inputElement.placeholder = "Escribe tu nombre para comenzar...";
+    helperText.innerText = "Primero dime cómo te llamas.";
+    activeFormula.parentElement.classList.add("hidden");
+}
+
 function resetStats() {
     totalEvaluated = 0;
     totalValid = 0;
     totalInvalid = 0;
 
-    document.getElementById("statTotal").innerText = totalEvaluated;
-    document.getElementById("statValid").innerText = totalValid;
-    document.getElementById("statInvalid").innerText = totalInvalid;
+    renderStats();
+}
+
+function setStats(stats) {
+    if (!stats) {
+        return;
+    }
+
+    totalEvaluated = Number(stats.total || 0);
+    totalValid = Number(stats.valid || 0);
+    totalInvalid = Number(stats.invalid || 0);
+
+    renderStats();
+}
+
+function renderStats() {
+    setElementText("statTotal", totalEvaluated);
+    setElementText("statValid", totalValid);
+    setElementText("statInvalid", totalInvalid);
+}
+
+function setElementText(id, value) {
+    const element = document.getElementById(id);
+
+    if (!element) {
+        return;
+    }
+
+    element.innerText = value;
 }
 
 function toggleSidebar() {
@@ -767,9 +905,7 @@ function updateStats(isValid) {
         totalInvalid++;
     }
 
-    document.getElementById("statTotal").innerText = totalEvaluated;
-    document.getElementById("statValid").innerText = totalValid;
-    document.getElementById("statInvalid").innerText = totalInvalid;
+    renderStats();
 }
 
 function getValidateUrl() {
@@ -806,7 +942,7 @@ function getCsrfToken() {
 }
 
 function escapeHtml(value) {
-    if (!value) {
+    if (value === null || value === undefined) {
         return "";
     }
 
@@ -846,6 +982,10 @@ document.addEventListener("click", (event) => {
 
     if (actionButton.dataset.chatAction === "focus-input") {
         document.getElementById("sentenceInput").focus();
+    }
+
+    if (actionButton.dataset.chatAction === "show-chat-summary") {
+        showCurrentChatSummary();
     }
 
     if (actionButton.dataset.chatAction === "change-type") {
@@ -918,9 +1058,9 @@ Object.assign(window, {
     promptCategorySelection,
     selectCategory,
     sendCustomMessage,
-    setUserName,
+    // setUserName,
     startNewChat,
-    skipUserName,
+    // skipUserName,
     toggleSidebar,
 });
 

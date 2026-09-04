@@ -23,10 +23,12 @@ class ChatbotPageTest extends TestCase
             ->assertSee('Historial')
             ->assertSee('Categorías')
             ->assertSee('Detección Automática')
-            ->assertSee('Escribe una pregunta en inglés', false)
+            ->assertSee('Escribe tu nombre para comenzar', false)
             ->assertSee('Especificación de Expresiones Regulares')
             ->assertSee('data-chat-action="toggle-sidebar"', false)
             ->assertSee('id="conversationList"', false)
+            ->assertDontSee('data-chat-category="WH_QUESTION"', false)
+            ->assertDontSee('data-chat-category="PAST_WAS_WERE"', false)
             ->assertDontSee('fa-'.'robot', false);
     }
 }

@@ -38,7 +38,8 @@ class ChatbotController extends Controller
             'type' => [
                 'nullable',
                 'string',
-                Rule::exists('languages', 'code')->where('is_active', true),
+                Rule::in(SentenceValidatorService::enabledLanguageCodes()),
+                // Rule::exists('languages', 'code')->where('is_active', true),
             ],
             'user_name' => ['nullable', 'string', 'max:100'],
             'conversation_id' => ['nullable', 'integer'],
@@ -67,6 +68,7 @@ class ChatbotController extends Controller
                 'id' => $conversation->id,
                 'title' => $conversation->title,
                 'messages_count' => $conversation->messages()->count(),
+                'stats' => $this->conversationStats($conversation),
             ],
             'quick_replies' => [
                 ['label' => 'Probar otra frase', 'action' => 'continue'],
@@ -306,7 +308,7 @@ class ChatbotController extends Controller
     }
 
     /**
-     * @return array{id: int, title: string, user_name: string, messages: array<int, array<string, mixed>>}
+     * @return array{id: int, title: string, user_name: string, stats: array{total: int, valid: int, invalid: int}, messages: array<int, array<string, mixed>>}
      */
     private function serializeConversation(Conversation $conversation): array
     {
@@ -314,6 +316,7 @@ class ChatbotController extends Controller
             'id' => $conversation->id,
             'title' => $conversation->title,
             'user_name' => $conversation->user_name,
+            'stats' => $this->conversationStats($conversation),
             'messages' => $conversation->messages->map(fn ($message): array => [
                 'id' => $message->id,
                 'user_message' => $message->user_message,
@@ -326,6 +329,21 @@ class ChatbotController extends Controller
                 'validation' => $message->validation_payload,
                 'created_at' => $message->created_at?->toISOString(),
             ])->all(),
+        ];
+    }
+
+    /**
+     * @return array{total: int, valid: int, invalid: int}
+     */
+    private function conversationStats(Conversation $conversation): array
+    {
+        $total = $conversation->messages()->count();
+        $valid = $conversation->messages()->where('is_valid', true)->count();
+
+        return [
+            'total' => $total,
+            'valid' => $valid,
+            'invalid' => $total - $valid,
         ];
     }
 

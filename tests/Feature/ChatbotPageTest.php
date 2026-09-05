@@ -18,6 +18,7 @@ class ChatbotPageTest extends TestCase
 
         $response
             ->assertOk()
+            ->assertSee("Hello! My name is RegularBot. What's your name?", false)
             ->assertSee('Chatbot de expresiones regulares')
             ->assertSee('Nuevo chat')
             ->assertSee('Historial')

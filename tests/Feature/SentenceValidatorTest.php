@@ -73,28 +73,28 @@ class SentenceValidatorTest extends TestCase
     //     }
     // }
 
-    // public function test_past_was_were_valid_sentences(): void
-    // {
-    //     $validExamples = [
-    //         'Were you a good student?',
-    //         'Were they in Barranquilla yesterday?',
-    //         'Was the dog furious?',
-    //         'Was Maria sick last week?',
-    //         'Was I late?',
-    //         'Was this pencil black?',
-    //         'Were the boys happy?',
-    //         'Was that car fast?',
-    //         'Were those tables clean?',
-    //     ];
-    //
-    //     foreach ($validExamples as $sentence) {
-    //         $result = $this->validator->validate($sentence, 'PAST_WAS_WERE');
-    //         $this->assertTrue($result['is_valid'], "Expected '{$sentence}' to be valid for PAST_WAS_WERE.");
-    //         $this->assertEquals('PAST_WAS_WERE', $result['type']);
-    //         $this->assertNotEmpty($result['components']['verb']);
-    //         $this->assertNotEmpty($result['components']['subject']);
-    //     }
-    // }
+    public function test_past_was_were_valid_sentences(): void
+    {
+        $validExamples = [
+            'Were you a good student?',
+            'Were they in Barranquilla yesterday?',
+            'Was the dog furious?',
+            'Was Maria sick last week?',
+            'Was I late?',
+            'Was this pencil black?',
+            'Were the boys happy?',
+            'Was that car fast?',
+            'Were those tables clean?',
+        ];
+
+        foreach ($validExamples as $sentence) {
+            $result = $this->validator->validate($sentence, 'PAST_WAS_WERE');
+            $this->assertTrue($result['is_valid'], "Expected '{$sentence}' to be valid for PAST_WAS_WERE.");
+            $this->assertEquals('PAST_WAS_WERE', $result['type']);
+            $this->assertNotEmpty($result['components']['verb']);
+            $this->assertNotEmpty($result['components']['subject']);
+        }
+    }
 
     public function test_invalid_sentences_give_feedback(): void
     {
@@ -166,8 +166,8 @@ class SentenceValidatorTest extends TestCase
         $response = $this->getJson('/api/examples');
         $response->assertStatus(200)
             ->assertJsonPath('categories.YES_NO_PRESENT.title', 'Yes/No Questions (Presente)')
-            ->assertJsonMissingPath('categories.WH_QUESTION')
-            ->assertJsonMissingPath('categories.PAST_WAS_WERE');
+            ->assertJsonPath('categories.PAST_WAS_WERE.title', 'Questions Pasado (Was / Were)')
+            ->assertJsonMissingPath('categories.WH_QUESTION');
     }
 
     public function test_api_validate_returns_422_for_disabled_question_type(): void

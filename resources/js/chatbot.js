@@ -7,17 +7,18 @@ let totalValid = 0;
 let totalInvalid = 0;
 let pendingDeleteConversation = null;
 let isWaitingForUserName = true;
+let chatStep = "name";
 
 const categoryNames = {
     YES_NO_PRESENT: "Yes/No Questions (Presente)",
     // WH_QUESTION: "Wh- Questions (Información)",
-    // PAST_WAS_WERE: "Questions Pasado (Was / Were)",
+    PAST_WAS_WERE: "Questions Pasado (Was / Were)",
 };
 
 const categoryFormulas = {
     YES_NO_PRESENT: "Am / Is / Are + Sujeto + Complemento + ?",
     // WH_QUESTION: "Wh- Word + To Be + Sujeto + Complemento + ?",
-    // PAST_WAS_WERE: "Was / Were + Sujeto + Complemento + ?",
+    PAST_WAS_WERE: "Was / Were + Sujeto + Complemento + ?",
 };
 
 // function setUserName() {
@@ -47,13 +48,13 @@ const categoryFormulas = {
 function setUserNameFromMessage(name) {
     currentUserName = name;
     isWaitingForUserName = false;
+    chatStep = "sentence";
 
     appendUserMessage(name);
     appendBotMessage(`
-        <p>¡Mucho gusto, <strong>${escapeHtml(currentUserName)}</strong>!</p>
-        <p class="text-zinc-400">Vamos paso a paso, escribe una question en present para empezar a practicar</p>
+        <p>Nice to meet you, <strong>${escapeHtml(currentUserName)}</strong>!</p>
+        <p class="text-zinc-400">Please type a question in English using the verb <strong>TO BE</strong> in present.</p>
     `);
-    promptCategorySelection();
     prepareQuestionInput();
 }
 
@@ -63,9 +64,31 @@ function prepareQuestionInput() {
     const activeFormula = document.getElementById("activeFormula");
 
     inputElement.placeholder =
-        "Escribe una pregunta en inglés (Ej: Is she a nice girl?)...";
-    helperText.innerText = "Pregunta activa:";
+        "Type a sentence with TO BE (Ej: Is she my girlfriend?)...";
+    helperText.innerText = "Sentence mode:";
     activeFormula.parentElement.classList.remove("hidden");
+}
+
+function prepareContinueInput() {
+    const inputElement = document.getElementById("sentenceInput");
+    const helperText = document.getElementById("inputHelperText");
+    const activeFormula = document.getElementById("activeFormula");
+
+    inputElement.placeholder = "yes/no";
+    helperText.innerText = "Answer yes or no.";
+    activeFormula.parentElement.classList.add("hidden");
+    inputElement.focus();
+}
+
+function prepareEndedInput() {
+    const inputElement = document.getElementById("sentenceInput");
+    const helperText = document.getElementById("inputHelperText");
+    const activeFormula = document.getElementById("activeFormula");
+
+    inputElement.placeholder = "Start a new chat to practice again.";
+    helperText.innerText = "Practice finished.";
+    activeFormula.parentElement.classList.add("hidden");
+    inputElement.focus();
 }
 
 function promptCategorySelection() {
@@ -166,19 +189,52 @@ function handleFormSubmit(event) {
         return;
     }
 
-    const shouldCaptureName =
-        isWaitingForUserName ||
-        (currentUserName === "Estudiante" &&
-            totalEvaluated === 0 &&
-            !message.endsWith("?"));
-
-    if (shouldCaptureName) {
+    if (chatStep === "name" || isWaitingForUserName) {
         setUserNameFromMessage(message);
+    } else if (chatStep === "continue") {
+        handleContinueResponse(message);
+    } else if (chatStep === "ended") {
+        appendUserMessage(message);
+        appendBotMessage(
+            "This practice is already finished. Start a new chat when you want to practice again.",
+        );
     } else {
         validateSentence(message, currentCategory);
     }
 
     inputElement.value = "";
+}
+
+function handleContinueResponse(message) {
+    const answer = message.toLowerCase();
+
+    appendUserMessage(message);
+
+    if (["yes", "y", "si", "sí"].includes(answer)) {
+        chatStep = "sentence";
+        appendBotMessage("Great! Type your next sentence.");
+        prepareQuestionInput();
+
+        return;
+    }
+
+    if (["no", "n"].includes(answer)) {
+        chatStep = "ended";
+        appendBotMessage(`
+            <p>Thanks for practicing, <strong>${escapeHtml(currentUserName)}</strong>! See you next time.</p>
+            ${conversationStatsSummary({
+                total: totalEvaluated,
+                valid: totalValid,
+                invalid: totalInvalid,
+            })}
+        `);
+        prepareEndedInput();
+
+        return;
+    }
+
+    appendBotMessage("Please answer with <strong>yes</strong> or <strong>no</strong>.");
+    prepareContinueInput();
 }
 
 function sendCustomMessage(sentence, category = null) {
@@ -222,6 +278,7 @@ async function validateSentence(sentence, category) {
                 data.conversation?.id || currentConversationId;
             renderValidationResult(data);
             setStats(data.conversation?.stats);
+            askToContinue();
             await loadConversationHistory(currentConversationId, {
                 preserveMessages: true,
             });
@@ -235,6 +292,12 @@ async function validateSentence(sentence, category) {
         );
         console.error(error);
     }
+}
+
+function askToContinue() {
+    chatStep = "continue";
+    appendBotMessage("Do you want to try another sentence? <strong>(yes/no)</strong>");
+    prepareContinueInput();
 }
 
 async function parseJsonResponse(response) {
@@ -270,7 +333,7 @@ function renderValidationResult(data) {
                 <span class="text-[11px] text-zinc-500 font-medium">${escapeHtml(validation.type_name || (validation.type ? categoryNames[validation.type] : "Verbo TO BE"))}</span>
             </div>
 
-            <p class="text-sm text-zinc-300">${escapeHtml(validation.feedback)}</p>
+            <p class="text-sm text-zinc-300">${escapeHtml(validationResultText(validation))}</p>
     `;
 
     if (isValid && validation.components) {
@@ -282,15 +345,27 @@ function renderValidationResult(data) {
     }
 
     cardHtml += `
+            <!--
             <div class="pt-2 border-t border-zinc-900 flex flex-wrap gap-2 text-xs">
                 <button type="button" data-chat-action="show-chat-summary" class="rounded-md bg-zinc-900 px-3 py-1.5 text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100">
                     Evaluar
                 </button>
             </div>
+            -->
         </div>
     `;
 
     appendBotMessage(cardHtml);
+}
+
+function validationResultText(validation) {
+    if (!validation.is_valid) {
+        return "Invalid sentence.";
+    }
+
+    const tense = validation.components?.tense === "Pasado" ? "past" : "present";
+
+    return `Correct sentence in ${tense} using TO BE.`;
 }
 
 function conversationStatsSummary(stats) {

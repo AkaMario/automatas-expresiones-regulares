@@ -9,7 +9,7 @@ class SentenceValidatorService
     private const ENABLED_LANGUAGE_CODES = [
         'YES_NO_PRESENT',
         // 'WH_QUESTION',
-        // 'PAST_WAS_WERE',
+        'PAST_WAS_WERE',
     ];
 
     /**
@@ -117,7 +117,7 @@ class SentenceValidatorService
                 'type_name' => $typeName,
                 'formula' => $matchedPattern['formula'],
                 'pattern_used' => $matchedPattern['pattern'],
-                'feedback' => "¡Excelente! La oración es gramaticalmente correcta si deseas continuar escribe otra pregunta.",
+                'feedback' => '¡Excelente! La oración es gramaticalmente correcta si deseas continuar escribe otra pregunta.',
                 'components' => $parsed,
                 'error' => null,
             ];

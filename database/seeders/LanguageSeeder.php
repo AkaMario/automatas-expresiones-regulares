@@ -108,8 +108,8 @@ class LanguageSeeder extends Seeder
                     'Was they in Barranquilla?' => 'Concordancia incorrecta: "they" requiere "Were".',
                     'Were she sick last week?' => 'Concordancia incorrecta: "she" requiere "Was".',
                 ],
-                'is_active' => false,
-                // 'is_active' => true,
+                // 'is_active' => false,
+                'is_active' => true,
                 'sort_order' => 3,
             ],
         ];
